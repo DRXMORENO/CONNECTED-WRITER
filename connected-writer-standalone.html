@@ -1,0 +1,287 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>CONNECTED WRITER — Standalone</title>
+    <style>
+      :root{--bg:#0f1724;--card:#0b1220;--muted:#9aa4b2;--accent:#7c5cff}
+      *{box-sizing:border-box}
+      html,body{height:100%;margin:0;font-family:Inter,Segoe UI,Roboto,Arial;background:linear-gradient(180deg,#071023 0%, #071a2b 60%);color:#e6eef8}
+      .app-root{display:flex;height:100vh}
+      .sidebar{width:280px;padding:20px;background:linear-gradient(180deg,rgba(255,255,255,0.02),transparent);backdrop-filter: blur(6px);border-right:1px solid rgba(255,255,255,0.03)}
+      .brand{display:flex;flex-direction:column;gap:12px}
+      .brand h1{margin:0;font-size:18px}
+      .btn{background:var(--accent);border:none;color:white;padding:8px 12px;border-radius:8px;cursor:pointer}
+      .projects{margin-top:20px;display:flex;flex-direction:column;gap:8px}
+      .project-item{padding:10px;border-radius:8px;cursor:pointer;background:transparent;border:1px solid transparent}
+      .project-item.active{background:linear-gradient(90deg, rgba(124,92,255,0.12), rgba(124,92,255,0.06));border-color:rgba(124,92,255,0.2)}
+      .project-title{font-weight:600}
+      .project-meta{font-size:12px;color:var(--muted)}
+      .sidebar-footer{margin-top:auto;font-size:12px;color:var(--muted)}
+      .main-area{flex:1;padding:28px;display:flex;flex-direction:column}
+      .main-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+      .meta{color:var(--muted)}
+      .empty{color:var(--muted)}
+      .editor-root{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:18px;border-radius:12px;flex:1;display:flex;flex-direction:column;gap:12px;box-shadow:0 8px 30px rgba(2,6,23,0.6)}
+      .toolbar{display:flex;justify-content:space-between;align-items:center}
+      .toolbar button{background:transparent;border:1px solid rgba(255,255,255,0.04);color:inherit;padding:6px 8px;border-radius:8px;margin-right:6px;cursor:pointer}
+      .editor-meta{display:flex;justify-content:space-between;align-items:center}
+      .doc-title{font-size:18px;font-weight:700}
+      .stats{display:flex;gap:12px;align-items:center}
+      .editor{flex:1;padding:20px;background:rgba(10,14,20,0.6);border-radius:10px;outline:none;overflow:auto}
+      .editor:focus{box-shadow:0 0 0 3px rgba(124,92,255,0.08)}
+      .editor-bottom{display:flex;justify-content:space-between;align-items:center}
+      .btn-ghost{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted);padding:6px 10px;border-radius:8px}
+      .hint{color:var(--muted);font-size:13px}
+      .editor-root.focus{padding:40px}
+      @media (max-width:900px){.sidebar{display:none}}
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <!-- React + Babel (for JSX in-browser; acceptable for prototyping) -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <script type="text/babel">
+      const { useState, useEffect, useRef } = React
+
+      // Simple templates
+      const templates = [
+        { name: 'Romance - Abertura Cinematográfica', content: '<h1>Capítulo 1</h1><p>Ele olhou através da janela, e o mundo pareceu parar...</p>' },
+        { name: 'Cena de Diálogo', content: '<p>"—", disse ele.</p><p>"—", respondeu ela.</p>' },
+        { name: 'Esboço de Personagem', content: '<h2>Nome:</h2><p></p><h3>Idade:</h3><p></p><h3>Objetivos:</h3><ul><li></li></ul>' },
+        { name: 'Esqueleto de Capítulo', content: '<h1>Título do Capítulo</h1><h3>Objetivo:</h3><p></p><h3>Obstáculos:</h3><ul><li></li></ul><h3>Desfecho:</h3><p></p>' }
+      ]
+
+      function saveToStorage(projects){
+        localStorage.setItem('connected-writer:projects', JSON.stringify(projects))
+      }
+
+      function loadFromStorage(){
+        try{ const raw = localStorage.getItem('connected-writer:projects'); return raw ? JSON.parse(raw) : null } catch(e){ return null }
+      }
+
+      function Sidebar({ projects, setProjects, activeProjectId, setActiveProjectId }){
+        const [showCharacters, setShowCharacters] = useState(false)
+        function addProject(){
+          const id = 'p-' + Date.now()
+          const newProject = { id, title: 'Projeto ' + (projects.length + 1), docs: [{ id: id + '-d1', title: 'Novo Documento', content: '' }], createdAt: Date.now() }
+          setProjects([newProject, ...projects])
+          setActiveProjectId(id)
+        }
+        function addDocToProject(projectId){
+          setProjects(prev => prev.map(p => {
+            if(p.id !== projectId) return p
+            const id = p.id + '-d' + (p.docs.length + 1) + '-' + Date.now()
+            return { ...p, docs: [...p.docs, { id, title: 'Documento ' + (p.docs.length + 1), content: '' }] }
+          }))
+        }
+
+        return (
+          <aside className="sidebar">
+            <div className="brand">
+              <h1>CONNECTED WRITER</h1>
+              <div style={{display:'flex',gap:8}}>
+                <button className="btn" onClick={addProject}>+ Novo Projeto</button>
+              </div>
+            </div>
+
+            <div className="projects">
+              <h3 style={{marginTop:0}}>Projetos</h3>
+              {projects.map(p => (
+                <div key={p.id} className={`project-item ${p.id === activeProjectId ? 'active' : ''}`}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                    <div style={{cursor:'pointer'}} onClick={() => setActiveProjectId(p.id)}>
+                      <div className="project-title">{p.title}</div>
+                      <div className="project-meta">{p.docs.length} docs</div>
+                    </div>
+                    <div>
+                      <button className="btn" onClick={() => addDocToProject(p.id)}>+ Doc</button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{marginTop:18}}>
+              <h4>Ferramentas Rápidas</h4>
+              <button className="btn-ghost" onClick={() => {
+                const name = prompt('Abrir template (escreva o nome):\n' + templates.map(t=>t.name).join('\n'))
+                if(!name) return
+                const t = templates.find(x => x.name.toLowerCase() === name.toLowerCase())
+                if(t) window.dispatchEvent(new CustomEvent('apply-template',{detail:t}))
+                else alert('Template não encontrado')
+              }}>Templates</button>
+              <button className="btn-ghost" onClick={() => setShowCharacters(s => !s)}>{showCharacters ? 'Fechar Personagens' : 'Personagens'}</button>
+            </div>
+
+            {showCharacters && (
+              <div style={{marginTop:12}}>
+                <h4>Personagens</h4>
+                <div style={{fontSize:13,color:'#aab7c6'}}>Adicione e descreva personagens no documento (protótipo)</div>
+              </div>
+            )}
+
+            <footer className="sidebar-footer">Protótipo • Templates • Versões</footer>
+          </aside>
+        )
+      }
+
+      function Toolbar({ onCommand, onExport, onToggleFocus, focusMode }){
+        return (
+          <div className="toolbar">
+            <div className="tools-left">
+              <button onClick={() => onCommand('bold')} title="Negrito">B</button>
+              <button onClick={() => onCommand('italic')} title="Itálico">I</button>
+              <button onClick={() => onCommand('h1')} title="H1">H1</button>
+              <button onClick={() => onCommand('ul')} title="Lista">•</button>
+            </div>
+            <div className="tools-right">
+              <button onClick={onExport}>Exportar</button>
+              <button onClick={onToggleFocus}>{focusMode ? 'Sair do Foco' : 'Modo Foco'}</button>
+            </div>
+          </div>
+        )
+      }
+
+      function Editor({ project, updateDoc }){
+        const [doc, setDoc] = useState(project.docs[0])
+        const [focusMode, setFocusMode] = useState(false)
+        const editorRef = useRef(null)
+        const [timer, setTimer] = useState(0)
+        const timerRef = useRef(null)
+        const [versions, setVersions] = useState(() => [])
+
+        useEffect(() => { setDoc(project.docs[0]); setVersions(project.docs[0].versions || []) }, [project])
+        useEffect(() => { const iv = setInterval(() => save(false), 2000); return () => clearInterval(iv) }, [doc])
+
+        function exec(command){ try{ document.execCommand(command) }catch(e){} editorRef.current?.focus() }
+        function save(snapshot = true){
+          const content = editorRef.current?.innerHTML || ''
+          updateDoc(project.id, doc.id, { content })
+          if(snapshot){
+            const snap = { id: 'v-' + Date.now(), content, createdAt: Date.now() }
+            const newVersions = [snap, ...(versions || [])].slice(0,50)
+            setVersions(newVersions)
+            updateDoc(project.id, doc.id, { versions: newVersions })
+          }
+        }
+
+        function handleExport(){
+          const html = editorRef.current.innerHTML
+          const text = editorRef.current.innerText || ''
+          const blob = new Blob([html], { type: 'text/html' })
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement('a'); a.href = url; a.download = `${doc.title || 'doc'}.html`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url)
+          const blob2 = new Blob([text], { type: 'text/markdown' })
+          const url2 = URL.createObjectURL(blob2)
+          const a2 = document.createElement('a'); a2.href = url2; a2.download = `${doc.title || 'doc'}.md`; document.body.appendChild(a2); a2.click(); a2.remove(); URL.revokeObjectURL(url2)
+        }
+
+        function toggleFocus(){ setFocusMode(f => !f) }
+        function startTimer(){ if(timerRef.current) return; timerRef.current = setInterval(() => setTimer(t => t + 1), 1000) }
+        function stopTimer(){ clearInterval(timerRef.current); timerRef.current = null }
+        function wordCount(){ const text = editorRef.current?.innerText || ''; const words = text.trim().split(/\s+/).filter(Boolean); return words.length }
+        function applyTemplate(t){ const content = typeof t.content === 'function' ? t.content() : t.content; editorRef.current.innerHTML = content; setDoc(d => ({...d})); save(true) }
+        function restoreVersion(v){ editorRef.current.innerHTML = v.content; setDoc(d => ({...d})); save(true) }
+
+        useEffect(() => {
+          function onApply(e){ applyTemplate(e.detail) }
+          window.addEventListener('apply-template', onApply)
+          return () => window.removeEventListener('apply-template', onApply)
+        }, [versions])
+
+        return (
+          <section className={`editor-root ${focusMode ? 'focus' : ''}`}>
+            <Toolbar onCommand={(c) => { if (c === 'h1') { exec('formatBlock', '<h1>') } else if (c === 'ul') { exec('insertUnorderedList') } else exec(c) }} onExport={handleExport} onToggleFocus={toggleFocus} focusMode={focusMode} />
+            <div className="editor-meta">
+              <div className="doc-title">{doc.title}</div>
+              <div className="stats">
+                <span>Palavras: {wordCount()}</span>
+                <span>Tempo: {Math.floor(timer/60)}m {timer%60}s</span>
+                <button onClick={startTimer}>Iniciar</button>
+                <button onClick={stopTimer}>Parar</button>
+              </div>
+            </div>
+
+            <div style={{display:'flex',gap:12}}>
+              <div style={{flex:1}}>
+                <div className="editor" contentEditable ref={editorRef} onInput={() => setDoc(d => ({...d}))} dangerouslySetInnerHTML={{__html: doc.content || '<p>Comece a escrever aqui...</p>'}} />
+                <div className="editor-bottom">
+                  <button className="btn-ghost" onClick={() => save(true)}>Salvar Snap</button>
+                  <div className="hint">Rascunho salvo no armazenamento local automaticamente.</div>
+                </div>
+              </div>
+
+              <aside style={{width:320,display:'flex',flexDirection:'column',gap:10}}>
+                <div style={{background:'rgba(255,255,255,0.02)',padding:10,borderRadius:8}}>
+                  <h4>Templates</h4>
+                  {templates.map(t => (
+                    <div key={t.name} style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+                      <div style={{fontSize:13}}>{t.name}</div>
+                      <button className="btn-ghost" onClick={() => applyTemplate(t)}>Aplicar</button>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{background:'rgba(255,255,255,0.02)',padding:10,borderRadius:8}}>
+                  <h4>Versões</h4>
+                  <div style={{maxHeight:200,overflow:'auto'}}>
+                    {(versions || []).map(v => (
+                      <div key={v.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 0',borderBottom:'1px solid rgba(255,255,255,0.02)'}}>
+                        <div style={{fontSize:12,color:'#cbd6e1'}}>{new Date(v.createdAt).toLocaleString()}</div>
+                        <div>
+                          <button className="btn-ghost" onClick={() => restoreVersion(v)}>Restaurar</button>
+                        </div>
+                      </div>
+                    ))}
+                    {!(versions||[]).length && <div style={{color:'#9aa4b2',fontSize:13}}>Sem versões ainda — salve um snapshot.</div>}
+                  </div>
+                </div>
+              </aside>
+            </div>
+          </section>
+        )
+      }
+
+      function App(){
+        const [projects, setProjects] = useState(() => loadFromStorage() || [{ id: 'p-1', title: 'Meu Primeiro Projeto', docs: [{ id: 'd-1', title: 'Capítulo 1', content: '' }], createdAt: Date.now() }])
+        const [activeProjectId, setActiveProjectId] = useState(projects[0]?.id || null)
+
+        useEffect(() => saveToStorage(projects), [projects])
+
+        function updateDoc(projectId, docId, patch){
+          setProjects(prev => prev.map(p => {
+            if(p.id !== projectId) return p
+            return { ...p, docs: p.docs.map(d => d.id === docId ? { ...d, ...patch } : d) }
+          }))
+        }
+
+        const activeProject = projects.find(p => p.id === activeProjectId)
+
+        return (
+          <div className="app-root">
+            <Sidebar projects={projects} setProjects={setProjects} activeProjectId={activeProjectId} setActiveProjectId={setActiveProjectId} />
+            <main className="main-area">
+              {activeProject ? (
+                <>
+                  <header className="main-header">
+                    <h2>{activeProject.title}</h2>
+                    <div className="meta">{activeProject.docs.length} docs • {new Date(activeProject.createdAt).toLocaleDateString()}</div>
+                  </header>
+                  <Editor project={activeProject} updateDoc={updateDoc} />
+                </>
+              ) : <div className="empty">Selecione ou crie um projeto</div>}
+            </main>
+          </div>
+        )
+      }
+
+      ReactDOM.createRoot(document.getElementById('root')).render(<App />)
+    </script>
+  </body>
+</html>
